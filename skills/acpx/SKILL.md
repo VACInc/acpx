@@ -355,8 +355,12 @@ the user's global Claude settings and no such plugin conflict exists. Ambient
 credentials are not inherited; grant them with `ACPX_AUTH_*` or config `auth`.
 
 On Windows, native Claude executable discovery resolves relative `PATH` entries
-from the selected session cwd. An explicit `CLAUDE_CODE_EXECUTABLE` still takes
-precedence.
+from the selected session cwd. To pin a different executable, pass
+`CLAUDE_CODE_EXECUTABLE` explicitly: grant it with
+`ACPX_AUTH_CLAUDE_CODE_EXECUTABLE`, or set it in the session environment
+(`agentProcessEnv`). An explicit value takes precedence over discovery. A
+`CLAUDE_CODE_EXECUTABLE` set only in the acpx process environment is not
+inherited.
 
 ## Sessions cleanup
 
