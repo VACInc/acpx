@@ -18,6 +18,12 @@ argument follows the official registry. Set `ANTIGRAVITY_HARNESS_PATH` to the
 absolute path of the matching helper (`localharness_external.exe` on Windows).
 acpx does not download or update these binaries.
 
+acpx does not pass its own environment to agents, so set the runtime's
+variables explicitly: grant them with `ACPX_AUTH_<NAME>` (for example
+`ACPX_AUTH_ANTIGRAVITY_HARNESS_PATH`, `ACPX_AUTH_GEMINI_HOME` and
+`ACPX_AUTH_AGY_ACP_FORCE_FILE_STORAGE`) or pass them in `agentProcessEnv`. A
+value set only in the acpx process environment does not reach the runtime.
+
 The runtime owns authentication. Complete sign-in through an interactive ACP
 client before unattended use. Its account profile is rooted at `GEMINI_HOME`
 (default `~/.gemini`), not `HOME`. Select personal Google-account authentication
