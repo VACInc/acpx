@@ -8,7 +8,7 @@ Repo: https://github.com/openclaw/acpx
 
 ### Breaking
 
-- Agents: agent children, command probes and ACP terminals no longer inherit the parent environment. They receive process essentials (`PATH`, `HOME`, locale, temp, `XDG_*`, proxy and TLS settings, including NODE_USE_ENV_PROXY) plus explicit grants only, so ambient provider keys and host tokens stay out of agents. Grant a credential with `ACPX_AUTH_<NAME>`, config `auth`, or `agentProcessEnv`; agent logins stored under `HOME` keep working.
+- Agents: agent children, command probes and ACP terminals no longer inherit the parent environment. They receive process essentials (`PATH`, `HOME`, locale, temp, `XDG_*`, proxy and TLS settings, including NODE_USE_ENV_PROXY) plus explicit grants only, so ambient provider keys and host tokens stay out of agents. Grant a credential with `ACPX_AUTH_<NAME>`, config `auth`, or `agentProcessEnv`; agent logins stored under `HOME` keep working. ACP terminals now start from their agent environment, so they also receive saved session env and grants instead of the acpx process environment.
 
 ## 0.19.6 - 2026-10-16
 

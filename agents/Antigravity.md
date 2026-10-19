@@ -33,8 +33,9 @@ credential-storage configuration used during sign-in. A dedicated profile avoids
 sharing writable state with another ACP client. `AGY_ACP_FORCE_FILE_STORAGE=1`
 selects profile-local credential storage; let the runtime manage that file.
 
-For a subscription-only unattended launcher, remove ambient Google/Gemini API
-keys and cloud credential/project variables, select personal OAuth explicitly,
+For a subscription-only unattended launcher, do not grant Google/Gemini API
+keys or cloud credential/project variables (acpx does not pass ambient ones),
+select personal OAuth explicitly,
 and reject browser sign-in with a clear setup error. Merely setting
 `GEMINI_HOME` does not implement that failure policy. Expired credentials may
 otherwise start interactive sign-in. Never commit or copy account tokens into

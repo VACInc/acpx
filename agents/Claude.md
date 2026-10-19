@@ -18,7 +18,8 @@ claiming singleton external resources in an ACP-spawned session.
 
 Set `ACPX_CLAUDE_INCLUDE_USER_SETTINGS=1` only when the spawned session needs
 the user's global Claude settings and no such plugin conflict exists. Ambient
-credentials and other environment variables are still inherited normally.
+credentials are not inherited. Grant a key with `ACPX_AUTH_<NAME>`, for example
+`ACPX_AUTH_ANTHROPIC_API_KEY`, or use `claude login`.
 
 On Windows, native Claude executable discovery resolves relative `PATH` entries
 from the selected session cwd. An explicit `CLAUDE_CODE_EXECUTABLE` still takes

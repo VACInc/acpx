@@ -32,7 +32,7 @@ Core capabilities:
 - Passive replay and live observation (`sessions watch -s <name> --cursor <cursor>`; omit the cursor for retained history)
 - Local agent process checks via `status`
 - Stable ACP client methods for filesystem and terminal requests; filesystem paths preserve symlink/parent traversal order within the working directory
-- Stable ACP `authenticate` handshake via env/config credentials
+- Stable ACP `authenticate` handshake via explicit `ACPX_AUTH_*` or config credentials
 - Structured streaming output (`text`, `json`, `quiet`) with optional `--suppress-reads`
 - Prompt-response `_meta` preservation across direct, queued, compare, and embedded-runtime results
 - Built-in agent registry plus raw `--agent` escape hatch
@@ -397,8 +397,11 @@ Use `acpx config show` to inspect the resolved config and `acpx config init` to 
 
 For ACP `authenticate` handshakes, use either config `auth` entries or explicit
 `ACPX_AUTH_<METHOD_ID>` environment variables such as `ACPX_AUTH_OPENAI_API_KEY`.
-Ambient provider env vars such as `OPENAI_API_KEY` are still passed through to
-child agents, but they do not trigger ACP auth-method selection on their own.
+Ambient provider env vars such as `OPENAI_API_KEY` are not passed to child
+agents. An `ACPX_AUTH_<NAME>` grant sets `<NAME>` in the child environment and
+answers an ACP auth method whose id normalizes to `<NAME>`. The two often
+differ: Codex needs `ACPX_AUTH_OPENAI_API_KEY` for the key and
+`ACPX_AUTH_API_KEY=1` to select its `api-key` method.
 
 ## Devin ACP compatibility
 

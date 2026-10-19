@@ -6,7 +6,7 @@
 
 `acpx grok-build` launches the installed `grok` CLI through its ACP stdio entrypoint. Install Grok Build and complete its normal authentication flow before using it through `acpx`.
 
-When Grok advertises `cached_token`, `acpx` asks the Grok ACP server to authenticate with its agent-managed cached login. For non-browser and automation environments where Grok advertises `xai.api_key`, `acpx grok-build` also accepts `XAI_API_KEY`.
+When Grok advertises `cached_token`, `acpx` asks the Grok ACP server to authenticate with its agent-managed cached login. For non-browser and automation environments where Grok advertises `xai.api_key`, grant the key with `ACPX_AUTH_XAI_API_KEY`; an ambient `XAI_API_KEY` is not passed to the agent.
 
 Examples:
 

@@ -54,4 +54,5 @@ prebuilt archives or installer, so build/install `zeroclaw-acp-bridge` from the 
 source tree before using this override. It reads the gateway URL from the local ZeroClaw
 config. When gateway pairing is active, run `zeroclaw gateway get-paircode --new`, then
 start the bridge once with `zeroclaw-acp-bridge --pair-code <code>` to cache a token; an
-existing token can instead be supplied through `ZEROCLAW_ACP_BRIDGE_TOKEN`.
+existing token can instead be granted as `ACPX_AUTH_ZEROCLAW_ACP_BRIDGE_TOKEN`, which sets
+`ZEROCLAW_ACP_BRIDGE_TOKEN` for the bridge.

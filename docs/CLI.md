@@ -482,8 +482,10 @@ Raw command strings, including `--agent`, are supported only on Unix.
 
 For ACP `authenticate` handshakes, use either config `auth` entries or explicit
 `ACPX_AUTH_<METHOD_ID>` environment variables such as `ACPX_AUTH_OPENAI_API_KEY`.
-Ambient provider env vars such as `OPENAI_API_KEY` are still passed through to
-child agents, but they do not trigger ACP auth-method selection on their own.
+Ambient provider env vars such as `OPENAI_API_KEY` are not passed to child
+agents. An `ACPX_AUTH_<NAME>` grant sets `<NAME>` in the child environment and
+answers an ACP auth method whose id normalizes to `<NAME>`; see
+[Granting credentials to agents](config.md#granting-credentials-to-agents).
 
 ## `--agent` escape hatch
 
