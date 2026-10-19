@@ -35,17 +35,17 @@ const windowsAuthCases: Array<{
   expected: NodeJS.ProcessEnv;
 }> = [
   {
-    name: "config preserves a differently cased inherited native credential",
+    name: "config replaces an inherited native credential that is not passed through",
     inherited: { api_token: "synthetic-parent" },
     credentials: { "api-token": "synthetic-config" },
     expected: {
-      api_token: "synthetic-parent",
       "api-token": "synthetic-config",
       ACPX_AUTH_API_TOKEN: "synthetic-config",
+      API_TOKEN: "synthetic-config",
     },
   },
   {
-    name: "prefixed promotion preserves a differently cased native credential",
+    name: "prefixed promotion wins over an inherited native credential",
     inherited: {
       ACPX_AUTH_API_TOKEN: "synthetic-explicit",
       api_token: "synthetic-parent",
@@ -53,7 +53,7 @@ const windowsAuthCases: Array<{
     credentials: undefined,
     expected: {
       ACPX_AUTH_API_TOKEN: "synthetic-explicit",
-      api_token: "synthetic-parent",
+      API_TOKEN: "synthetic-explicit",
     },
   },
   {
@@ -67,11 +67,11 @@ const windowsAuthCases: Array<{
     },
   },
   {
-    name: "config preserves a differently cased inherited raw method credential",
+    name: "config replaces an inherited raw method credential",
     inherited: { "api-token": "synthetic-parent-raw" },
     credentials: { "API-TOKEN": "synthetic-config" },
     expected: {
-      "api-token": "synthetic-parent-raw",
+      "API-TOKEN": "synthetic-config",
       ACPX_AUTH_API_TOKEN: "synthetic-config",
       API_TOKEN: "synthetic-config",
     },
@@ -87,18 +87,6 @@ for (const entry of windowsAuthCases) {
   });
 }
 
-for (const inheritedValue of ["", "  "]) {
-  test(`Windows auth defaults preserve an inherited ${JSON.stringify(inheritedValue)} value`, () => {
-    const env = buildSyntheticAuthEnvironment(
-      "win32",
-      { api_token: inheritedValue },
-      { "api-token": "synthetic-config" },
-    );
-    assert.equal(env.api_token, inheritedValue);
-    assert.equal(Object.hasOwn(env, "API_TOKEN"), false);
-  });
-}
-
 test("auth defaults still fill missing aliases on Windows", () => {
   assert.deepEqual(
     buildSyntheticAuthEnvironment("win32", {}, { "api-token": "synthetic-config" }),
@@ -110,19 +98,7 @@ test("auth defaults still fill missing aliases on Windows", () => {
   );
 });
 
-test("auth defaults preserve exact-case inherited values on Windows", () => {
-  const inherited = {
-    "api-token": "synthetic-raw",
-    ACPX_AUTH_API_TOKEN: "synthetic-explicit",
-    API_TOKEN: "synthetic-native",
-  };
-  assert.deepEqual(
-    buildSyntheticAuthEnvironment("win32", inherited, { "api-token": "synthetic-config" }),
-    inherited,
-  );
-});
-
-test("auth defaults retain case-sensitive environment names on Unix", () => {
+test("auth defaults drop inherited credentials with case-variant names on Unix", () => {
   const inherited = {
     "API-TOKEN": "synthetic-raw",
     acpx_auth_api_token: "synthetic-prefixed",
@@ -131,7 +107,6 @@ test("auth defaults retain case-sensitive environment names on Unix", () => {
   assert.deepEqual(
     buildSyntheticAuthEnvironment("linux", inherited, { "api-token": "synthetic-config" }),
     {
-      ...inherited,
       "api-token": "synthetic-config",
       ACPX_AUTH_API_TOKEN: "synthetic-config",
       API_TOKEN: "synthetic-config",
@@ -149,7 +124,7 @@ test("Windows auth defaults ignore undefined entries without losing the configur
   assert.equal(env.ACPX_AUTH_API_TOKEN, "synthetic-config");
 });
 
-test("session and runtime overlays preserve case-equivalent inherited auth values on Windows", () => {
+test("session and runtime overlays cannot replace inherited prefixed auth values on Windows", () => {
   const inherited = {
     acpx_auth_api_token: "synthetic-explicit",
     api_token: "synthetic-native",
@@ -175,8 +150,50 @@ test("session and runtime overlays preserve case-equivalent inherited auth value
   );
   assert.deepEqual(env, {
     acpx_auth_api_token: "synthetic-explicit",
-    api_token: "synthetic-native",
-    "api-token": "synthetic-raw",
+    API_TOKEN: "synthetic-explicit",
+    "API-TOKEN": "synthetic-config",
     ordinary_setting: "runtime",
   });
+});
+
+const gatewayEnvironment: NodeJS.ProcessEnv = {
+  PATH: "/usr/bin",
+  HOME: "/home/synthetic",
+  LANG: "C.UTF-8",
+  LC_ALL: "C.UTF-8",
+  XDG_CONFIG_HOME: "/home/synthetic/.config",
+  https_proxy: "http://proxy.invalid:3128",
+  OPENCLAW_GATEWAY_TOKEN: "synthetic-gateway-token",
+  OPENAI_API_KEY: "synthetic-openai",
+  ANTHROPIC_API_KEY: "synthetic-anthropic",
+  GH_TOKEN: "synthetic-github",
+  NODE_OPTIONS: "--require synthetic-hook.cjs",
+};
+
+for (const platform of ["linux", "win32"] as const) {
+  test(`agent children inherit process essentials but no host credentials on ${platform}`, () => {
+    assert.deepEqual(buildSyntheticAuthEnvironment(platform, gatewayEnvironment), {
+      PATH: "/usr/bin",
+      HOME: "/home/synthetic",
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      XDG_CONFIG_HOME: "/home/synthetic/.config",
+      https_proxy: "http://proxy.invalid:3128",
+    });
+  });
+}
+
+test("credentials reach agent children only through explicit grants", () => {
+  const env = buildSyntheticAuthEnvironment(
+    "linux",
+    { ...gatewayEnvironment, ACPX_AUTH_ANTHROPIC_API_KEY: "synthetic-granted-anthropic" },
+    { openai_api_key: "synthetic-granted-openai" },
+    undefined,
+    { GH_TOKEN: "synthetic-granted-github" },
+  );
+  assert.equal(env.OPENAI_API_KEY, "synthetic-granted-openai");
+  assert.equal(env.ANTHROPIC_API_KEY, "synthetic-granted-anthropic");
+  assert.equal(env.GH_TOKEN, "synthetic-granted-github");
+  assert.equal(Object.hasOwn(env, "OPENCLAW_GATEWAY_TOKEN"), false);
+  assert.equal(Object.hasOwn(env, "NODE_OPTIONS"), false);
 });

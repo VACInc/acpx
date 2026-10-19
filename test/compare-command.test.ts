@@ -31,7 +31,6 @@ function startCli(args: string[], homeDir: string, cwd: string, input?: string) 
     env: {
       ...process.env,
       HOME: homeDir,
-      ACPX_TEST_REPO_ROOT: REPO_ROOT,
     },
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
@@ -77,7 +76,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
 
-const require = createRequire(process.env.ACPX_TEST_REPO_ROOT + "/package.json");
+const require = createRequire(${JSON.stringify(path.join(REPO_ROOT, "package.json"))});
 const {
   AgentSideConnection,
   PROTOCOL_VERSION,

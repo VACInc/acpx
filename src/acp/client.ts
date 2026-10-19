@@ -98,6 +98,7 @@ import {
 import { extractAgentSessionId } from "./agent-session-id.js";
 import {
   buildAgentSpawnOptions,
+  inheritedAgentEnvironment,
   readEnvCredential,
   resolveConfiguredAuthCredential,
 } from "./auth-env.js";
@@ -439,6 +440,8 @@ export class AcpClient {
   private agentStartedAt?: string;
   private lastAgentExit?: AgentExitInfo;
   private lastKnownPid?: number;
+  /** Environment given to the current agent child; terminals inherit it. */
+  private agentEnvironment?: NodeJS.ProcessEnv;
   private readonly promptPermissionFailures = new Map<string, PermissionPromptUnavailableError>();
   private readonly pendingConnectionRequests = new Set<PendingConnectionRequest>();
 
@@ -469,6 +472,7 @@ export class AcpClient {
     });
     this.terminalManager = new TerminalManager({
       cwd: this.options.cwd,
+      environment: () => this.agentEnvironment ?? inheritedAgentEnvironment(),
       permissionMode: this.options.permissionMode,
       nonInteractivePermissions: this.options.nonInteractivePermissions,
       onOperation: (operation) => {
@@ -745,6 +749,7 @@ export class AcpClient {
       this.options.sessionOptions?.env,
       this.options.agentProcessEnv,
     );
+    this.agentEnvironment = spawnOptions.env;
     const commandContext: AgentLaunchPlan["commandContext"] = {
       env: spawnOptions.env,
       readOutput: async (command, args, timeoutMs, diagnostic = false) => {
@@ -2113,7 +2118,8 @@ export class AcpClient {
     if (!this.isGrokBuildAcpCommand() || methodId !== "xai.api_key") {
       return undefined;
     }
-    const value = process.env.XAI_API_KEY;
+    // Only an explicitly granted key; the host environment is not inherited.
+    const value = this.agentEnvironment?.XAI_API_KEY;
     return typeof value === "string" && value.trim().length > 0 ? value : undefined;
   }
 

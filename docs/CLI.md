@@ -751,7 +751,7 @@ as FIFOs are skipped. Capture failures leave the command's exit status unchanged
 Related runtime behavior:
 
 - session storage path is derived from OS home directory (`~/.acpx/sessions`)
-- child processes inherit the current environment by default
+- agent children, probes and ACP terminals inherit only process essentials (`PATH`, `HOME`, locale, temp, `XDG_*`, proxy and TLS settings); grant credentials with `ACPX_AUTH_*` or config `auth`
 - Windows shell commands keep stdout and stderr available through `terminal/output`. Terminal kill and release requests fail if process cleanup cannot finish after escalation. The terminal remains available for a cleanup retry; restore a working `taskkill` command before retrying.
 - ACP `terminal/create` honors agent `outputByteLimit`; `0` stores nothing and the default when omitted is 64 KiB. Hosts can opt into an additional per-terminal retention ceiling with `ACPX_TERMINAL_MAX_OUTPUT_BYTES` (for example, `16777216` for 16 MiB). Unset, empty, or zero disables only the host ceiling, preserving the agent limit and default. Positive values must be safe integers. The smaller limit applies to combined stdout and stderr, retaining the newest UTF-8 output and reporting `truncated: true` when exceeded. Truncation drops an incomplete leading code point across writes; the retained output can be empty if no complete code point fits. This bounds retained output per terminal, not total process memory. Each ACP client snapshots the setting at construction; restart warm queue owners to change it.
 

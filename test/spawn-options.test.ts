@@ -163,7 +163,7 @@ test("spawned agent child process receives session env with parent-override prec
   );
 });
 
-test("spawned agent children preserve literal own session env keys and parent precedence", async () => {
+test("spawned agent children preserve literal own session env keys without inheriting parent values", async () => {
   const literalKey = "__proto__";
   const keys = [literalKey, "ACPX_TEST_LITERAL_ORDINARY"];
   const previous = keys.map(
@@ -183,13 +183,13 @@ test("spawned agent children preserve literal own session env keys and parent pr
     {
       parent: "parent-literal",
       session: undefined,
-      literal: "parent-literal",
-      ordinary: "parent-ordinary",
+      literal: undefined,
+      ordinary: undefined,
     },
     {
       parent: "parent-literal",
       session: { ACPX_TEST_LITERAL_ORDINARY: "session-ordinary" },
-      literal: "parent-literal",
+      literal: undefined,
       ordinary: "session-ordinary",
     },
     {
@@ -245,13 +245,17 @@ test("spawned agent children preserve literal own session env keys and parent pr
       assert.equal(outcome.signal, null);
       assert.equal(outcome.code, 0, stderr);
       assert.equal(Object.getPrototypeOf(options.env), Object.prototype);
-      assert.equal(Object.getOwnPropertyDescriptor(options.env, "__proto__")?.enumerable, true);
-      assert.equal(options.env[literalKey], scenario.literal);
+      assert.equal(
+        Object.getOwnPropertyDescriptor(options.env, "__proto__")?.value,
+        scenario.literal,
+      );
+      const observed = (value: string | undefined) =>
+        value === undefined ? { own: false, value: null } : { own: true, value };
       assert.deepEqual(
         JSON.parse(stdout),
         Object.fromEntries([
-          ["__proto__", { own: true, value: scenario.literal }],
-          ["ACPX_TEST_LITERAL_ORDINARY", { own: true, value: scenario.ordinary }],
+          ["__proto__", observed(scenario.literal)],
+          ["ACPX_TEST_LITERAL_ORDINARY", observed(scenario.ordinary)],
         ]),
       );
       assert.equal(child.stdout.readableEnded, true);

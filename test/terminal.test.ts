@@ -327,6 +327,48 @@ function getManagedStdio(
   return terminal.process;
 }
 
+test("terminal commands get the agent environment, not the host environment", async () => {
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-terminal-env-"));
+  const previous = process.env.ACPX_TEST_HOST_SECRET;
+  process.env.ACPX_TEST_HOST_SECRET = "synthetic-host-secret";
+  const manager = new TerminalManager({
+    cwd,
+    permissionMode: "approve-all",
+    environment: () => ({ PATH: process.env.PATH, ACPX_TEST_GRANTED: "synthetic-granted" }),
+  });
+  try {
+    const script =
+      "process.stdout.write(JSON.stringify([process.env.ACPX_TEST_HOST_SECRET ?? null, process.env.ACPX_TEST_GRANTED ?? null, process.env.ACPX_TEST_REQUESTED ?? null]))";
+    for (const env of [
+      undefined,
+      [{ name: "ACPX_TEST_REQUESTED", value: "synthetic-requested" }],
+    ]) {
+      const created = await manager.createTerminal({
+        sessionId: "synthetic",
+        command: process.execPath,
+        args: ["-e", script],
+        env,
+      });
+      await manager.waitForTerminalExit({ sessionId: "synthetic", ...created });
+      const { output } = await manager.terminalOutput({ sessionId: "synthetic", ...created });
+      assert.deepEqual(JSON.parse(output), [
+        null,
+        "synthetic-granted",
+        env ? "synthetic-requested" : null,
+      ]);
+      await manager.releaseTerminal({ sessionId: "synthetic", ...created });
+    }
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ACPX_TEST_HOST_SECRET;
+    } else {
+      process.env.ACPX_TEST_HOST_SECRET = previous;
+    }
+    await manager.shutdown();
+    await fs.rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("terminal manager create/output/wait/release lifecycle", async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-terminal-test-"));
   try {

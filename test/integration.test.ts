@@ -673,7 +673,11 @@ test("integration: flow run fails ACP nodes promptly when the agent disconnects 
     const directory = await fs.mkdtemp(path.join(homeDir, "disconnect-gate-"));
     const result = await runCli(
       [
-        ...baseLoadCapableAgentArgs(cwd),
+        "--agent",
+        `${LOAD_CAPABLE_MOCK_AGENT_COMMAND} --disconnect-gate ${JSON.stringify(directory)}`,
+        "--approve-all",
+        "--cwd",
+        cwd,
         "--format",
         "json",
         "flow",
@@ -5853,7 +5857,6 @@ async function runCliWithEntry(
       HOME: homeDir,
       ...(process.platform === "win32" ? { USERPROFILE: homeDir } : {}),
       ...options.env,
-      ...(gate ? { ACPX_TEST_DISCONNECT_GATE: gate.directory } : {}),
     },
     cwd: options.cwd,
     stdio: ["pipe", "pipe", "pipe"],

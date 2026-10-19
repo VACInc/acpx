@@ -92,13 +92,88 @@ function validateAgentProcessEnv(agentProcessEnv: Record<string, string> | undef
   }
 }
 
-function buildAgentEnvironment(
+// Agent children, probes and ACP terminals inherit only these process
+// essentials. Credentials reach them through ACPX_AUTH_*, config `auth`
+// (authCredentials), session env or agentProcessEnv, never by inheritance.
+const INHERITED_ENV_NAMES = new Set([
+  // Command lookup, identity, shell, locale and temp files.
+  "PATH",
+  "HOME",
+  "USER",
+  "LOGNAME",
+  "SHELL",
+  "TERM",
+  "COLORTERM",
+  "NO_COLOR",
+  "FORCE_COLOR",
+  "LANG",
+  "LANGUAGE",
+  "TZ",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  // Network reachability and TLS trust in proxied or private-CA setups.
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "NO_PROXY",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  // Windows process essentials.
+  "SYSTEMROOT",
+  "SYSTEMDRIVE",
+  "WINDIR",
+  "COMSPEC",
+  "PATHEXT",
+  "USERPROFILE",
+  "USERNAME",
+  "USERDOMAIN",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "PROGRAMW6432",
+  "COMMONPROGRAMFILES",
+  "COMMONPROGRAMFILES(X86)",
+  "COMMONPROGRAMW6432",
+  "NUMBER_OF_PROCESSORS",
+  "PROCESSOR_ARCHITECTURE",
+  "OS",
+]);
+const INHERITED_ENV_PREFIXES = ["LC_", "XDG_", AUTH_ENV_PREFIX];
+
+function isInheritedEnvName(key: string): boolean {
+  // Proxy variables are conventionally lower case on Unix too.
+  const upper = key.toUpperCase();
+  const name = process.platform === "win32" || upper.endsWith("_PROXY") ? upper : key;
+  return (
+    INHERITED_ENV_NAMES.has(name) ||
+    INHERITED_ENV_PREFIXES.some((prefix) => protectedEnvKey(key).startsWith(prefix))
+  );
+}
+
+/** Process essentials an agent child inherits from this process. */
+export function inheritedAgentEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && isInheritedEnvName(key)) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
+export function buildAgentEnvironment(
   authCredentials: Record<string, string> | undefined,
   sessionEnv: Record<string, string> | undefined,
   agentProcessEnv: Record<string, string> | undefined,
 ): NodeJS.ProcessEnv {
   validateAgentProcessEnv(agentProcessEnv);
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env = inheritedAgentEnvironment();
   const protectedAuthEnvKeys = promotePrefixedAuthEnvironment(env);
   if (authCredentials) {
     for (const [methodId, credential] of Object.entries(authCredentials)) {

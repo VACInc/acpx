@@ -144,11 +144,16 @@ ACPX_AUTH_OPENAI_API_KEY=sk-… acpx codex 'do the thing'
 
 The global and project `auth` maps merge by method ID. An empty project `auth` object does not clear global credentials; matching project keys replace the corresponding global values. Matching `ACPX_AUTH_*` environment variables still take precedence over the merged config map.
 
-Ambient provider env vars like `OPENAI_API_KEY` are still passed through to child agents in their environment, but they do **not** trigger ACP auth-method selection on their own. This is intentional — it avoids surprise login flows in adapters that interpret an ambient key as "go ahead and authenticate."
+Ambient provider env vars like `OPENAI_API_KEY` are **not** passed to child agents. Agents, probes and ACP terminals inherit only process essentials such as `PATH`, `HOME`, locale, temp, `XDG_*`, proxy and TLS settings. Grant a credential explicitly instead; acpx adds the normalized name to the child environment:
 
-When adding authentication aliases to the child environment, acpx preserves
-inherited values, including empty strings. On Windows, differently cased names
-refer to the same environment variable; Unix names remain case sensitive.
+```bash
+ACPX_AUTH_OPENAI_API_KEY="$OPENAI_API_KEY" acpx codex 'do the thing'
+```
+
+An `auth` config entry such as `openai_api_key` has the same effect. Agents that keep their own login state (for example `codex login` or `claude login`) continue to work because `HOME` and `XDG_*` are inherited. Embedded clients can also pass `agentProcessEnv`; see [runtime environment](runtime-environment.md).
+
+On Windows, differently cased names refer to the same environment variable;
+Unix names remain case sensitive.
 
 When an adapter advertises auth methods, `acpx` invokes `authenticate` if it
 finds a matching `ACPX_AUTH_*` environment variable or `auth` config value.
@@ -169,7 +174,7 @@ sessions.
 Other ACP-relevant behavior:
 
 - Session storage path is derived from the OS home directory (`~/.acpx/sessions`).
-- Child adapter processes inherit the current environment by default.
+- Child adapter processes inherit only process essentials; credentials need an explicit grant (see [Authentication](#authentication)).
 - Embedded clients can persist per-session overrides through `SessionAgentOptions.env`; environment variable names retain their exact casing when saved and reloaded.
 - Some adapters look at their own env vars (e.g., `QODER_PERSONAL_ACCESS_TOKEN`) — see [Agents](agents.md) for per-adapter notes.
 

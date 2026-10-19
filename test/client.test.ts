@@ -52,6 +52,7 @@ test("parseAcpJsonMessageLine preserves object-shaped protocol values", () => {
 });
 
 type ClientInternals = {
+  agentEnvironment?: NodeJS.ProcessEnv;
   createTappedStream?: (base: {
     readable: ReadableStream<AnyMessage>;
     writable: WritableStream<AnyMessage>;
@@ -174,7 +175,7 @@ type ClientInternals = {
   suppressReplaySessionUpdateMessages: boolean;
 };
 
-test("buildAgentSpawnOptions normalizes auth env keys and preserves existing values", () => {
+test("buildAgentSpawnOptions normalizes auth env keys and prefers explicit prefixed values", () => {
   withEnv(
     {
       ACPX_AUTH_API_TOKEN: "existing-prefixed",
@@ -192,7 +193,8 @@ test("buildAgentSpawnOptions normalizes auth env keys and preserves existing val
       assert.deepEqual(options.stdio, ["pipe", "pipe", "pipe"]);
       assert.equal(options.windowsHide, true);
       assert.equal(options.env.ACPX_AUTH_API_TOKEN, "existing-prefixed");
-      assert.equal(options.env.API_TOKEN, "existing-normalized");
+      // The inherited bare API_TOKEN is not passed through; the explicit prefixed grant wins.
+      assert.equal(options.env.API_TOKEN, "existing-prefixed");
       assert.equal(options.env.EXPLICIT_KEY, "explicit");
       assert.equal(options.env.ACPX_AUTH_EXPLICIT_KEY, "explicit");
       assert.equal(options.env["bad=key"], undefined);
@@ -333,7 +335,22 @@ test("AcpClient ignores ambient normalized provider env vars for auth selection"
   );
 });
 
-test("AcpClient uses XAI_API_KEY for Grok Build xai.api_key auth", async () => {
+test("AcpClient ignores an ambient XAI_API_KEY for Grok Build auth", async () => {
+  await withEnv(
+    {
+      XAI_API_KEY: "xai-ambient",
+      ACPX_AUTH_XAI_API_KEY: undefined,
+    },
+    async () => {
+      const client = makeClient({ agentCommand: "grok agent stdio" });
+      asInternals(client).agentEnvironment = {};
+      const selection = asInternals(client).selectAuthMethod?.([{ id: "xai.api_key" }]);
+      assert.equal(selection, undefined);
+    },
+  );
+});
+
+test("AcpClient uses the granted XAI_API_KEY for Grok Build xai.api_key auth", async () => {
   await withEnv(
     {
       XAI_API_KEY: "xai-ambient",
@@ -342,11 +359,12 @@ test("AcpClient uses XAI_API_KEY for Grok Build xai.api_key auth", async () => {
     async () => {
       const client = makeClient({ agentCommand: "grok agent stdio" });
       const internals = asInternals(client);
+      internals.agentEnvironment = { XAI_API_KEY: "xai-granted" };
 
       const selection = internals.selectAuthMethod?.([{ id: "xai.api_key" }]);
       assert.deepEqual(selection, {
         methodId: "xai.api_key",
-        credential: "xai-ambient",
+        credential: "xai-granted",
         source: "env",
       });
 

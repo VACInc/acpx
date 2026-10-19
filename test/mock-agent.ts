@@ -122,6 +122,7 @@ type MockAgentOptions = {
   elicitOnNewSession: boolean;
   /** If set, the agent writes its PID to this path at startup (before ACP handshake). */
   pidFile?: string;
+  disconnectGate?: string;
 };
 
 type SessionState = {
@@ -451,6 +452,7 @@ function parseMockAgentOptions(argv: string[]): MockAgentOptions {
   let hangOnNewSession = false;
   let elicitOnNewSession = false;
   let pidFile: string | undefined;
+  let disconnectGate: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -643,6 +645,12 @@ function parseMockAgentOptions(argv: string[]): MockAgentOptions {
       continue;
     }
 
+    if (token === "--disconnect-gate") {
+      disconnectGate = parseOptionValue(argv, index + 1, token);
+      index += 1;
+      continue;
+    }
+
     if (token === "--claude-agent-acp") {
       continue;
     }
@@ -720,6 +728,7 @@ function parseMockAgentOptions(argv: string[]): MockAgentOptions {
     queueLifecycleControl,
     elicitOnNewSession,
     pidFile,
+    disconnectGate,
   };
 }
 
@@ -1923,7 +1932,7 @@ if (mockAgentOptions.ignoreSigterm) {
   });
 }
 
-const disconnectGateDirectory = process.env.ACPX_TEST_DISCONNECT_GATE;
+const disconnectGateDirectory = mockAgentOptions.disconnectGate;
 if (disconnectGateDirectory) {
   setTimeout(() => {
     process.stderr.write("Synthetic disconnect gate exceeded its 30-second safety bound\n");

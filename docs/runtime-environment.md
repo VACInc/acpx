@@ -6,8 +6,17 @@ for the agent children owned by that runtime. ACPX snapshots the map when
 that runtime. The same overlay applies to probes, new sessions, controls and
 reconnections, including sessions loaded from an existing store.
 
+Agent children, command probes and ACP terminals do not inherit the parent
+process environment. They receive only process essentials (`PATH`, `HOME`,
+user, shell, terminal, locale, temp directories, `XDG_*`, proxy and TLS trust
+settings, and the Windows system variables) plus explicit grants:
+`ACPX_AUTH_*` variables, `authCredentials` or config `auth`, session
+environment and `agentProcessEnv`. A provider key such as `OPENAI_API_KEY` in
+the parent environment does not reach the agent unless one of those grants
+supplies it. ACP terminals start from the same environment as their agent.
+
 Precedence is protected authentication values, then `agentProcessEnv`, then
-persisted `sessionOptions.env`, then the inherited process environment. Windows
+persisted `sessionOptions.env`, then the inherited process essentials. Windows
 uses the same case-insensitive collision handling as session environment values.
 The overlay does not change the parent process environment.
 
