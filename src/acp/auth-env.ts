@@ -117,6 +117,8 @@ const INHERITED_ENV_NAMES = new Set([
   "HTTPS_PROXY",
   "ALL_PROXY",
   "NO_PROXY",
+  // Node honors the proxy variables only when this is set.
+  "NODE_USE_ENV_PROXY",
   "NODE_EXTRA_CA_CERTS",
   "SSL_CERT_FILE",
   "SSL_CERT_DIR",

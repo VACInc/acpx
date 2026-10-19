@@ -163,6 +163,7 @@ const gatewayEnvironment: NodeJS.ProcessEnv = {
   LC_ALL: "C.UTF-8",
   XDG_CONFIG_HOME: "/home/synthetic/.config",
   https_proxy: "http://proxy.invalid:3128",
+  NODE_USE_ENV_PROXY: "1",
   OPENCLAW_GATEWAY_TOKEN: "synthetic-gateway-token",
   OPENAI_API_KEY: "synthetic-openai",
   ANTHROPIC_API_KEY: "synthetic-anthropic",
@@ -179,6 +180,7 @@ for (const platform of ["linux", "win32"] as const) {
       LC_ALL: "C.UTF-8",
       XDG_CONFIG_HOME: "/home/synthetic/.config",
       https_proxy: "http://proxy.invalid:3128",
+      NODE_USE_ENV_PROXY: "1",
     });
   });
 }
