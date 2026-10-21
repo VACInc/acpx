@@ -98,7 +98,9 @@ import {
 import { extractAgentSessionId } from "./agent-session-id.js";
 import {
   buildAgentSpawnOptions,
+  isClearedEnvName,
   readEnvCredential,
+  snapshotAgentProcessEnvClear,
   resolveConfiguredAuthCredential,
 } from "./auth-env.js";
 import {
@@ -447,6 +449,7 @@ export class AcpClient {
       ...options,
       cwd: asAbsoluteCwd(options.cwd),
       agentProcessEnv: options.agentProcessEnv ? { ...options.agentProcessEnv } : undefined,
+      agentProcessEnvClear: snapshotAgentProcessEnvClear(options.agentProcessEnvClear),
       authPolicy: options.authPolicy ?? "skip",
       permissionPolicy: snapshotPermissionPolicy(options.permissionPolicy),
       elicitationModes: normalizeElicitationModes(options.elicitationModes),
@@ -469,6 +472,7 @@ export class AcpClient {
     });
     this.terminalManager = new TerminalManager({
       cwd: this.options.cwd,
+      inheritedEnvClear: this.options.agentProcessEnvClear,
       permissionMode: this.options.permissionMode,
       nonInteractivePermissions: this.options.nonInteractivePermissions,
       onOperation: (operation) => {
@@ -744,6 +748,7 @@ export class AcpClient {
       this.options.authCredentials,
       this.options.sessionOptions?.env,
       this.options.agentProcessEnv,
+      this.options.agentProcessEnvClear,
     );
     const commandContext: AgentLaunchPlan["commandContext"] = {
       env: spawnOptions.env,
@@ -2068,7 +2073,7 @@ export class AcpClient {
 
   private selectAuthMethod(methods: AuthMethod[]): AuthSelection | undefined {
     for (const method of methods) {
-      const envCredential = readEnvCredential(method.id);
+      const envCredential = readEnvCredential(method.id, this.options.agentProcessEnvClear);
       if (envCredential) {
         return {
           methodId: method.id,
@@ -2110,7 +2115,11 @@ export class AcpClient {
   }
 
   private readAgentSpecificEnvCredential(methodId: string): string | undefined {
-    if (!this.isGrokBuildAcpCommand() || methodId !== "xai.api_key") {
+    if (
+      !this.isGrokBuildAcpCommand() ||
+      methodId !== "xai.api_key" ||
+      isClearedEnvName(this.options.agentProcessEnvClear, "XAI_API_KEY")
+    ) {
       return undefined;
     }
     const value = process.env.XAI_API_KEY;

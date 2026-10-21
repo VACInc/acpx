@@ -290,6 +290,8 @@ export type AcpClientOptions = {
   agentArgv?: string[];
   /** Trusted child-only environment overlay; never persisted as session options. */
   agentProcessEnv?: Record<string, string>;
+  /** Parent environment names that agent children, probes and terminals do not inherit. */
+  agentProcessEnvClear?: readonly string[];
   cwd: string;
   mcpServers?: McpServer[];
   permissionMode: PermissionMode;

@@ -114,6 +114,95 @@ test("invalid runtime environment fails without echoing the supplied value", () 
   );
 });
 
+test("agentProcessEnvClear withholds inherited names while explicit grants still apply", () => {
+  const names = [
+    "ACPX_TEST_CLEAR_HOST_TOKEN",
+    "ACPX_TEST_CLEAR_KEPT",
+    "ACPX_TEST_CLEAR_GRANTED",
+  ] as const;
+  const previous = names.map((name) => process.env[name]);
+  process.env.ACPX_TEST_CLEAR_HOST_TOKEN = "synthetic-host-token";
+  process.env.ACPX_TEST_CLEAR_KEPT = "kept";
+  process.env.ACPX_TEST_CLEAR_GRANTED = "inherited";
+  try {
+    const options = buildAgentSpawnOptions(
+      os.tmpdir(),
+      undefined,
+      undefined,
+      { ACPX_TEST_CLEAR_GRANTED: "granted" },
+      ["ACPX_TEST_CLEAR_HOST_TOKEN", "ACPX_TEST_CLEAR_GRANTED"],
+    );
+    assert.equal(Object.hasOwn(options.env, "ACPX_TEST_CLEAR_HOST_TOKEN"), false);
+    assert.equal(options.env.ACPX_TEST_CLEAR_KEPT, "kept");
+    assert.equal(options.env.ACPX_TEST_CLEAR_GRANTED, "granted");
+    assert.equal(process.env.ACPX_TEST_CLEAR_HOST_TOKEN, "synthetic-host-token");
+  } finally {
+    names.forEach((name, index) => {
+      if (previous[index] === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = previous[index];
+      }
+    });
+  }
+});
+
+test("agentProcessEnvClear matches Windows names case-insensitively", () => {
+  const previous = process.env.ACPX_TEST_CLEAR_CASE;
+  process.env.ACPX_TEST_CLEAR_CASE = "synthetic-host-token";
+  try {
+    const options = withPlatform("win32", () =>
+      buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, [
+        "acpx_test_clear_case",
+      ]),
+    );
+    assert.equal(Object.hasOwn(options.env, "ACPX_TEST_CLEAR_CASE"), false);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ACPX_TEST_CLEAR_CASE;
+    } else {
+      process.env.ACPX_TEST_CLEAR_CASE = previous;
+    }
+  }
+});
+
+test("terminal spawn options withhold cleared names and keep inheritance otherwise", () => {
+  const previous = process.env.ACPX_TEST_CLEAR_TERMINAL;
+  process.env.ACPX_TEST_CLEAR_TERMINAL = "synthetic-host-token";
+  try {
+    const command = process.execPath;
+    assert.equal(buildTerminalSpawnOptions(command, os.tmpdir(), undefined).env, undefined);
+    const cleared = buildTerminalSpawnOptions(command, os.tmpdir(), undefined, process.platform, [
+      "ACPX_TEST_CLEAR_TERMINAL",
+    ]);
+    assert.equal(Object.hasOwn(cleared.env ?? {}, "ACPX_TEST_CLEAR_TERMINAL"), false);
+    assert.equal(cleared.env?.PATH, process.env.PATH);
+    const requested = buildTerminalSpawnOptions(
+      command,
+      os.tmpdir(),
+      [{ name: "ACPX_TEST_CLEAR_TERMINAL", value: "requested" }],
+      process.platform,
+      ["ACPX_TEST_CLEAR_TERMINAL"],
+    );
+    assert.equal(requested.env?.ACPX_TEST_CLEAR_TERMINAL, "requested");
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ACPX_TEST_CLEAR_TERMINAL;
+    } else {
+      process.env.ACPX_TEST_CLEAR_TERMINAL = previous;
+    }
+  }
+});
+
+test("invalid agentProcessEnvClear names fail before spawning", () => {
+  for (const name of ["", "A=B", "A\u0000B"]) {
+    assert.throws(
+      () => buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, [name]),
+      /Invalid agentProcessEnvClear/,
+    );
+  }
+});
+
 test("spawned agent child process receives session env with parent-override precedence", async () => {
   const script =
     "process.stdout.write(JSON.stringify({injected:process.env.ACPX_TEST_E2E_INJECTED,parent:process.env.ACPX_TEST_E2E_PARENT}))";

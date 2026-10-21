@@ -368,6 +368,34 @@ test("AcpClient uses XAI_API_KEY for Grok Build xai.api_key auth", async () => {
   );
 });
 
+test("AcpClient does not authenticate with env credentials the host clears", async () => {
+  await withEnv(
+    {
+      XAI_API_KEY: "xai-ambient",
+      ACPX_AUTH_XAI_API_KEY: undefined,
+      ACPX_AUTH_API_TOKEN: "granted-token",
+    },
+    async () => {
+      const grok = asInternals(
+        makeClient({ agentCommand: "grok agent stdio", agentProcessEnvClear: ["XAI_API_KEY"] }),
+      );
+      assert.deepEqual(grok.selectAuthMethod?.([{ id: "xai.api_key" }, { id: "cached_token" }]), {
+        methodId: "cached_token",
+        source: "agent",
+      });
+      const generic = asInternals(makeClient({ agentProcessEnvClear: ["ACPX_AUTH_API_TOKEN"] }));
+      assert.equal(generic.selectAuthMethod?.([{ id: "api-token" }]), undefined);
+    },
+  );
+});
+
+test("AcpClient rejects a clear list that is not an array of names", () => {
+  assert.throws(
+    () => makeClient({ agentProcessEnvClear: "XAI_API_KEY" as unknown as string[] }),
+    /Invalid agentProcessEnvClear/,
+  );
+});
+
 test("AcpClient keeps XAI_API_KEY scoped to Grok Build auth", async () => {
   await withEnv(
     {

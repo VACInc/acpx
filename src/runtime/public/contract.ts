@@ -433,6 +433,11 @@ export type AcpRuntimeOptions = {
   cwd: string;
   /** Trusted child-only environment, snapshotted at construction and never persisted. */
   agentProcessEnv?: Record<string, string>;
+  /**
+   * Parent environment names withheld from agent children, command probes and ACP
+   * terminals, snapshotted at construction. Explicit grants and overlays still apply.
+   */
+  agentProcessEnvClear?: readonly string[];
   sessionStore: AcpSessionStore;
   agentRegistry: AcpAgentRegistry;
   /**

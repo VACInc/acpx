@@ -24,6 +24,7 @@ test("probeRuntime uses the default agent override and reports protocol details"
       sessionStore: store,
       permissionPolicy,
       agentProcessEnv,
+      agentProcessEnvClear: ["ACPX_TEST_HOST_TOKEN"],
       processLifecycle,
       fs: true,
       terminal: true,
@@ -50,6 +51,7 @@ test("probeRuntime uses the default agent override and reports protocol details"
   assert.equal(constructed[0]?.agentCommand, "codex-override --acp");
   assert.deepEqual(constructed[0]?.permissionPolicy, permissionPolicy);
   assert.deepEqual(constructed[0]?.agentProcessEnv, agentProcessEnv);
+  assert.deepEqual(constructed[0]?.agentProcessEnvClear, ["ACPX_TEST_HOST_TOKEN"]);
   assert.equal(constructed[0]?.processLifecycle, processLifecycle);
   assert.equal(constructed[0]?.fs, false);
   assert.equal(constructed[0]?.terminal, false);

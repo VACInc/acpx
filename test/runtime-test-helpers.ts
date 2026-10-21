@@ -159,6 +159,7 @@ export function createRuntimeOptions(params: {
   agentRegistry?: AcpAgentRegistry;
   permissionPolicy?: AcpRuntimeOptions["permissionPolicy"];
   agentProcessEnv?: AcpRuntimeOptions["agentProcessEnv"];
+  agentProcessEnvClear?: AcpRuntimeOptions["agentProcessEnvClear"];
   processLifecycle?: AcpRuntimeOptions["processLifecycle"];
   fs?: AcpRuntimeOptions["fs"];
   terminal?: AcpRuntimeOptions["terminal"];
@@ -179,6 +180,9 @@ export function createRuntimeOptions(params: {
     permissionMode: "approve-reads",
     permissionPolicy: params.permissionPolicy,
     agentProcessEnv: params.agentProcessEnv,
+    ...(params.agentProcessEnvClear === undefined
+      ? {}
+      : { agentProcessEnvClear: params.agentProcessEnvClear }),
     processLifecycle: params.processLifecycle,
     ...(params.fs === undefined ? {} : { fs: params.fs }),
     ...(params.terminal === undefined ? {} : { terminal: params.terminal }),
