@@ -25,8 +25,12 @@ import {
   type TerminalSpawnCommand,
 } from "../spawn-command-options.js";
 import type { ClientOperation, NonInteractivePermissionPolicy, PermissionMode } from "../types.js";
-import { inheritParentEnvironment } from "./auth-env.js";
 import { PROCESS_HELPER_TIMEOUT_MS, runTimedExecFile, waitForSpawn } from "./client-process.js";
+import {
+  hasInheritedEnvPolicy,
+  inheritParentEnvironment,
+  type InheritedEnvPolicy,
+} from "./inherited-env.js";
 import { ProcessDescendants } from "./process-descendants.js";
 
 const DEFAULT_TERMINAL_OUTPUT_LIMIT_BYTES = 64 * 1024;
@@ -54,8 +58,8 @@ type TerminalCreation = {
 
 export type TerminalManagerOptions = {
   cwd: string;
-  /** Parent environment names withheld from terminal commands, as for agent children. */
-  inheritedEnvClear?: readonly string[];
+  /** Which parent environment names terminal commands inherit, as for agent children. */
+  inheritedEnv?: InheritedEnvPolicy;
   permissionMode: PermissionMode;
   nonInteractivePermissions?: NonInteractivePermissionPolicy;
   onOperation?: (operation: ClientOperation) => void;
@@ -84,13 +88,13 @@ function toCommandLine(command: string, args: string[] | undefined): string {
 
 function toEnvObject(
   env: CreateTerminalRequest["env"],
-  inheritedEnvClear: readonly string[] | undefined,
+  inheritedEnv: InheritedEnvPolicy | undefined,
 ): NodeJS.ProcessEnv | undefined {
-  if (!env?.length && !inheritedEnvClear?.length) {
+  if (!env?.length && !hasInheritedEnvPolicy(inheritedEnv)) {
     return undefined;
   }
 
-  const merged = inheritParentEnvironment(inheritedEnvClear);
+  const merged = inheritParentEnvironment(inheritedEnv);
   for (const entry of env ?? []) {
     merged[entry.name] = entry.value;
   }
@@ -102,9 +106,9 @@ export function buildTerminalSpawnOptions(
   cwd: string,
   env: CreateTerminalRequest["env"],
   platform: NodeJS.Platform = process.platform,
-  inheritedEnvClear?: readonly string[],
+  inheritedEnv?: InheritedEnvPolicy,
 ): TerminalSpawnOptions {
-  const resolvedEnv = toEnvObject(env, inheritedEnvClear);
+  const resolvedEnv = toEnvObject(env, inheritedEnv);
   const options: TerminalSpawnOptions = {
     cwd,
     env: resolvedEnv,
@@ -196,7 +200,7 @@ function onStreamError(): void {
 
 export class TerminalManager {
   private readonly cwd: string;
-  private readonly inheritedEnvClear: readonly string[] | undefined;
+  private readonly inheritedEnv: InheritedEnvPolicy | undefined;
   private permissionMode: PermissionMode;
   private nonInteractivePermissions: NonInteractivePermissionPolicy;
   private readonly onOperation?: (operation: ClientOperation) => void;
@@ -211,7 +215,7 @@ export class TerminalManager {
   constructor(options: TerminalManagerOptions) {
     this.outputCeilingBytes = readTerminalOutputCeiling();
     this.cwd = options.cwd;
-    this.inheritedEnvClear = options.inheritedEnvClear;
+    this.inheritedEnv = options.inheritedEnv;
     this.permissionMode = options.permissionMode;
     this.nonInteractivePermissions = options.nonInteractivePermissions ?? "deny";
     this.onOperation = options.onOperation;
@@ -277,7 +281,7 @@ export class TerminalManager {
       );
       const { proc, spawnCommand } = await spawnTerminalProcess(
         params,
-        { cwd: this.cwd, inheritedEnvClear: this.inheritedEnvClear },
+        { cwd: this.cwd, inheritedEnv: this.inheritedEnv },
         authority,
       );
 
@@ -654,7 +658,7 @@ export class TerminalManager {
 
 type TerminalSpawnContext = {
   cwd: string;
-  inheritedEnvClear: readonly string[] | undefined;
+  inheritedEnv: InheritedEnvPolicy | undefined;
 };
 
 async function spawnTerminalProcess(
@@ -697,7 +701,7 @@ async function spawnAndWait(
     params.cwd ?? context.cwd,
     params.env,
     process.platform,
-    context.inheritedEnvClear,
+    context.inheritedEnv,
   );
   // A detached Windows shell redirects its children's output to a new console.
   if (process.platform !== "win32") {

@@ -327,14 +327,14 @@ function getManagedStdio(
   return terminal.process;
 }
 
-test("terminal commands do not inherit names the client clears", async () => {
+test("terminal commands do not inherit names the client blocks", async () => {
   const previous = process.env.ACPX_TEST_TERMINAL_HOST_TOKEN;
   process.env.ACPX_TEST_TERMINAL_HOST_TOKEN = "synthetic-host-token";
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-terminal-env-clear-"));
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-terminal-env-block-"));
   const manager = new TerminalManager({
     cwd,
     permissionMode: "approve-all",
-    inheritedEnvClear: ["ACPX_TEST_TERMINAL_HOST_TOKEN"],
+    inheritedEnv: { block: ["ACPX_TEST_TERMINAL_HOST_TOKEN"] },
   });
   try {
     const created = await manager.createTerminal({

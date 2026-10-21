@@ -6,6 +6,10 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+### Changes
+
+- Runtime/embedding: add opt-in `agentProcessEnvBlock` and `agentProcessEnvAllow` so embedders can keep their own credentials out of the environment inherited by agents, command probes and ACP terminals. Both are off by default; explicit grants and overlays still apply. Thanks @VACInc.
+
 ## 0.20.0 - 2026-10-20
 
 **Highlights:** Add Octomind support, select exact permission options, and recover cleanly from failed session launches and discards.

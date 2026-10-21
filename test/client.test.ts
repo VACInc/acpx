@@ -368,7 +368,7 @@ test("AcpClient uses XAI_API_KEY for Grok Build xai.api_key auth", async () => {
   );
 });
 
-test("AcpClient does not authenticate with env credentials the host clears", async () => {
+test("AcpClient does not authenticate with env credentials the host withholds", async () => {
   await withEnv(
     {
       XAI_API_KEY: "xai-ambient",
@@ -376,24 +376,42 @@ test("AcpClient does not authenticate with env credentials the host clears", asy
       ACPX_AUTH_API_TOKEN: "granted-token",
     },
     async () => {
-      const grok = asInternals(
-        makeClient({ agentCommand: "grok agent stdio", agentProcessEnvClear: ["XAI_API_KEY"] }),
+      const methods = [{ id: "xai.api_key" }, { id: "cached_token" }];
+      const agentManaged = { methodId: "cached_token", source: "agent" };
+      for (const inherit of [
+        { agentProcessEnvBlock: ["XAI_API_KEY"] },
+        { agentProcessEnvAllow: [] },
+        { agentProcessEnvAllow: ["XAI_API_KEY"], agentProcessEnvBlock: ["XAI_API_KEY"] },
+      ]) {
+        const grok = asInternals(makeClient({ agentCommand: "grok agent stdio", ...inherit }));
+        assert.deepEqual(grok.selectAuthMethod?.(methods), agentManaged);
+      }
+      const allowed = asInternals(
+        makeClient({ agentCommand: "grok agent stdio", agentProcessEnvAllow: ["XAI_API_KEY"] }),
       );
-      assert.deepEqual(grok.selectAuthMethod?.([{ id: "xai.api_key" }, { id: "cached_token" }]), {
-        methodId: "cached_token",
-        source: "agent",
-      });
-      const generic = asInternals(makeClient({ agentProcessEnvClear: ["ACPX_AUTH_API_TOKEN"] }));
-      assert.equal(generic.selectAuthMethod?.([{ id: "api-token" }]), undefined);
+      assert.equal(allowed.selectAuthMethod?.(methods)?.source, "env");
+      for (const inherit of [
+        { agentProcessEnvBlock: ["ACPX_AUTH_API_TOKEN"] },
+        { agentProcessEnvAllow: [] },
+      ]) {
+        const generic = asInternals(makeClient(inherit));
+        assert.deepEqual(generic.selectAuthMethod?.([{ id: "api-token" }]), {
+          methodId: "api-token",
+          credential: "granted-token",
+          source: "env",
+        });
+      }
     },
   );
 });
 
-test("AcpClient rejects a clear list that is not an array of names", () => {
-  assert.throws(
-    () => makeClient({ agentProcessEnvClear: "XAI_API_KEY" as unknown as string[] }),
-    /Invalid agentProcessEnvClear/,
-  );
+test("AcpClient rejects allow and block lists that are not arrays of names", () => {
+  for (const option of ["agentProcessEnvAllow", "agentProcessEnvBlock"]) {
+    assert.throws(
+      () => makeClient({ [option]: "XAI_API_KEY" as unknown as string[] }),
+      new RegExp(`Invalid ${option}`),
+    );
+  }
 });
 
 test("AcpClient keeps XAI_API_KEY scoped to Grok Build auth", async () => {

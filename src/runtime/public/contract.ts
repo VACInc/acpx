@@ -434,10 +434,17 @@ export type AcpRuntimeOptions = {
   /** Trusted child-only environment, snapshotted at construction and never persisted. */
   agentProcessEnv?: Record<string, string>;
   /**
-   * Parent environment names withheld from agent children, command probes and ACP
-   * terminals, snapshotted at construction. Explicit grants and overlays still apply.
+   * Opt-in allowlist for agent children, command probes and ACP terminals: when set, they
+   * inherit only process essentials, these parent names and `ACPX_AUTH_*` grants.
+   * Snapshotted at construction. Explicit grants and overlays still apply.
    */
-  agentProcessEnvClear?: readonly string[];
+  agentProcessEnvAllow?: readonly string[];
+  /**
+   * Parent environment names withheld from agent children, command probes and ACP
+   * terminals, applied after `agentProcessEnvAllow` and snapshotted at construction.
+   * Explicit grants and overlays still apply.
+   */
+  agentProcessEnvBlock?: readonly string[];
   sessionStore: AcpSessionStore;
   agentRegistry: AcpAgentRegistry;
   /**

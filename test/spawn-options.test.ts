@@ -15,6 +15,7 @@ import {
   runTimedExecFile,
 } from "../src/acp/client-process.js";
 import { buildAgentSpawnOptions, buildSpawnCommandOptions } from "../src/acp/client.js";
+import type { InheritedEnvPolicy } from "../src/acp/inherited-env.js";
 import { buildTerminalSpawnOptions } from "../src/acp/terminal-manager.js";
 import { withTimeout } from "../src/async-control.js";
 import { observeProcessIncarnation, parseProcessBirthIdentity } from "../src/process-identity.js";
@@ -114,91 +115,166 @@ test("invalid runtime environment fails without echoing the supplied value", () 
   );
 });
 
-test("agentProcessEnvClear withholds inherited names while explicit grants still apply", () => {
-  const names = [
-    "ACPX_TEST_CLEAR_HOST_TOKEN",
-    "ACPX_TEST_CLEAR_KEPT",
-    "ACPX_TEST_CLEAR_GRANTED",
-  ] as const;
-  const previous = names.map((name) => process.env[name]);
-  process.env.ACPX_TEST_CLEAR_HOST_TOKEN = "synthetic-host-token";
-  process.env.ACPX_TEST_CLEAR_KEPT = "kept";
-  process.env.ACPX_TEST_CLEAR_GRANTED = "inherited";
-  try {
-    const options = buildAgentSpawnOptions(
-      os.tmpdir(),
-      undefined,
-      undefined,
-      { ACPX_TEST_CLEAR_GRANTED: "granted" },
-      ["ACPX_TEST_CLEAR_HOST_TOKEN", "ACPX_TEST_CLEAR_GRANTED"],
-    );
-    assert.equal(Object.hasOwn(options.env, "ACPX_TEST_CLEAR_HOST_TOKEN"), false);
-    assert.equal(options.env.ACPX_TEST_CLEAR_KEPT, "kept");
-    assert.equal(options.env.ACPX_TEST_CLEAR_GRANTED, "granted");
-    assert.equal(process.env.ACPX_TEST_CLEAR_HOST_TOKEN, "synthetic-host-token");
-  } finally {
-    names.forEach((name, index) => {
-      if (previous[index] === undefined) {
+function withParentEnv<T>(values: Record<string, string | undefined>, callback: () => T): T {
+  const previous = Object.fromEntries(Object.keys(values).map((name) => [name, process.env[name]]));
+  const assign = (entries: Record<string, string | undefined>) => {
+    for (const [name, value] of Object.entries(entries)) {
+      if (value === undefined) {
         delete process.env[name];
       } else {
-        process.env[name] = previous[index];
+        process.env[name] = value;
       }
-    });
-  }
-});
-
-test("agentProcessEnvClear matches Windows names case-insensitively", () => {
-  const previous = process.env.ACPX_TEST_CLEAR_CASE;
-  process.env.ACPX_TEST_CLEAR_CASE = "synthetic-host-token";
-  try {
-    const options = withPlatform("win32", () =>
-      buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, [
-        "acpx_test_clear_case",
-      ]),
-    );
-    assert.equal(Object.hasOwn(options.env, "ACPX_TEST_CLEAR_CASE"), false);
-  } finally {
-    if (previous === undefined) {
-      delete process.env.ACPX_TEST_CLEAR_CASE;
-    } else {
-      process.env.ACPX_TEST_CLEAR_CASE = previous;
     }
+  };
+  assign(values);
+  try {
+    return callback();
+  } finally {
+    assign(previous);
   }
+}
+
+const INHERIT_CANARIES = {
+  ACPX_TEST_INHERIT_HOST_TOKEN: "synthetic-host-token",
+  ACPX_TEST_INHERIT_ALLOWED: "allowed",
+  ACPX_TEST_INHERIT_OVERLAID: "inherited",
+  ACPX_AUTH_ACPX_TEST_INHERIT_GRANT: "synthetic-grant",
+  LC_ACPX_TEST_INHERIT: "locale",
+  XDG_ACPX_TEST_INHERIT: "xdg",
+};
+
+function spawnEnv(inheritedEnv?: InheritedEnvPolicy): NodeJS.ProcessEnv {
+  return buildAgentSpawnOptions(
+    os.tmpdir(),
+    undefined,
+    { ACPX_TEST_INHERIT_SESSION: "session" },
+    { ACPX_TEST_INHERIT_OVERLAID: "granted" },
+    inheritedEnv,
+  ).env;
+}
+
+test("agent env is unchanged when neither allow nor block is set", () => {
+  withParentEnv({ ACPX_TEST_INHERIT_HOST_TOKEN: "synthetic-host-token" }, () => {
+    const today = buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined).env;
+    assert.deepEqual(today, { ...process.env });
+    assert.equal(buildTerminalSpawnOptions("node", os.tmpdir(), undefined).env, undefined);
+    for (const policy of [undefined, {}, { allow: undefined, block: undefined }, { block: [] }]) {
+      assert.deepEqual(
+        buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, policy).env,
+        today,
+      );
+      assert.equal(
+        buildTerminalSpawnOptions("node", os.tmpdir(), undefined, process.platform, policy).env,
+        undefined,
+      );
+    }
+  });
 });
 
-test("terminal spawn options withhold cleared names and keep inheritance otherwise", () => {
-  const previous = process.env.ACPX_TEST_CLEAR_TERMINAL;
-  process.env.ACPX_TEST_CLEAR_TERMINAL = "synthetic-host-token";
-  try {
+test("agentProcessEnvBlock withholds inherited names while explicit grants still apply", () => {
+  withParentEnv(INHERIT_CANARIES, () => {
+    const env = spawnEnv({
+      block: [
+        "ACPX_TEST_INHERIT_HOST_TOKEN",
+        "ACPX_TEST_INHERIT_OVERLAID",
+        "ACPX_AUTH_ACPX_TEST_INHERIT_GRANT",
+        "ACPX_TEST_INHERIT_GRANT",
+      ],
+    });
+    assert.equal(Object.hasOwn(env, "ACPX_TEST_INHERIT_HOST_TOKEN"), false);
+    assert.equal(env.ACPX_TEST_INHERIT_ALLOWED, "allowed");
+    assert.equal(env.ACPX_TEST_INHERIT_OVERLAID, "granted");
+    assert.equal(env.ACPX_TEST_INHERIT_SESSION, "session");
+    assert.equal(env.ACPX_AUTH_ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+    assert.equal(env.ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+    assert.equal(env.PATH, process.env.PATH);
+    assert.equal(process.env.ACPX_TEST_INHERIT_HOST_TOKEN, "synthetic-host-token");
+  });
+});
+
+test("agentProcessEnvAllow keeps only essentials, listed names and explicit grants", () => {
+  withParentEnv(INHERIT_CANARIES, () => {
+    const env = spawnEnv({ allow: ["ACPX_TEST_INHERIT_ALLOWED"] });
+    assert.equal(Object.hasOwn(env, "ACPX_TEST_INHERIT_HOST_TOKEN"), false);
+    assert.equal(env.ACPX_TEST_INHERIT_ALLOWED, "allowed");
+    assert.equal(env.ACPX_TEST_INHERIT_OVERLAID, "granted");
+    assert.equal(env.ACPX_TEST_INHERIT_SESSION, "session");
+    assert.equal(env.ACPX_AUTH_ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+    assert.equal(env.ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+    assert.equal(env.LC_ACPX_TEST_INHERIT, "locale");
+    assert.equal(env.XDG_ACPX_TEST_INHERIT, "xdg");
+    assert.equal(env.PATH, process.env.PATH);
+    assert.equal(env.HOME, process.env.HOME);
+    const essentialsOnly = spawnEnv({ allow: [] });
+    assert.equal(Object.hasOwn(essentialsOnly, "ACPX_TEST_INHERIT_ALLOWED"), false);
+    assert.equal(essentialsOnly.PATH, process.env.PATH);
+  });
+});
+
+test("agentProcessEnvBlock applies after agentProcessEnvAllow and grants still win", () => {
+  withParentEnv(INHERIT_CANARIES, () => {
+    const env = spawnEnv({
+      allow: ["ACPX_TEST_INHERIT_ALLOWED", "ACPX_TEST_INHERIT_HOST_TOKEN"],
+      block: [
+        "ACPX_TEST_INHERIT_HOST_TOKEN",
+        "XDG_ACPX_TEST_INHERIT",
+        "ACPX_TEST_INHERIT_OVERLAID",
+      ],
+    });
+    assert.equal(Object.hasOwn(env, "ACPX_TEST_INHERIT_HOST_TOKEN"), false);
+    assert.equal(Object.hasOwn(env, "XDG_ACPX_TEST_INHERIT"), false);
+    assert.equal(env.ACPX_TEST_INHERIT_ALLOWED, "allowed");
+    assert.equal(env.LC_ACPX_TEST_INHERIT, "locale");
+    assert.equal(env.ACPX_TEST_INHERIT_OVERLAID, "granted");
+    assert.equal(env.ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+  });
+});
+
+test("agentProcessEnvAllow and agentProcessEnvBlock match Windows names case-insensitively", () => {
+  withParentEnv({ ...INHERIT_CANARIES, SystemRoot: "C:\\Windows" }, () => {
+    const env = withPlatform("win32", () =>
+      spawnEnv({
+        allow: ["acpx_test_inherit_allowed", "acpx_test_inherit_host_token"],
+        block: ["Acpx_Test_Inherit_Host_Token"],
+      }),
+    );
+    assert.equal(Object.hasOwn(env, "ACPX_TEST_INHERIT_HOST_TOKEN"), false);
+    assert.equal(env.ACPX_TEST_INHERIT_ALLOWED, "allowed");
+    assert.equal(env.SystemRoot, "C:\\Windows");
+    assert.equal(env.ACPX_AUTH_ACPX_TEST_INHERIT_GRANT, "synthetic-grant");
+  });
+});
+
+test("terminal spawn options apply allow and block while request env still wins", () => {
+  withParentEnv(INHERIT_CANARIES, () => {
     const command = process.execPath;
-    assert.equal(buildTerminalSpawnOptions(command, os.tmpdir(), undefined).env, undefined);
-    const cleared = buildTerminalSpawnOptions(command, os.tmpdir(), undefined, process.platform, [
-      "ACPX_TEST_CLEAR_TERMINAL",
-    ]);
-    assert.equal(Object.hasOwn(cleared.env ?? {}, "ACPX_TEST_CLEAR_TERMINAL"), false);
-    assert.equal(cleared.env?.PATH, process.env.PATH);
-    const requested = buildTerminalSpawnOptions(
+    const blocked = buildTerminalSpawnOptions(command, os.tmpdir(), undefined, process.platform, {
+      block: ["ACPX_TEST_INHERIT_HOST_TOKEN"],
+    });
+    assert.equal(Object.hasOwn(blocked.env ?? {}, "ACPX_TEST_INHERIT_HOST_TOKEN"), false);
+    assert.equal(blocked.env?.ACPX_TEST_INHERIT_ALLOWED, "allowed");
+    const allowed = buildTerminalSpawnOptions(
       command,
       os.tmpdir(),
-      [{ name: "ACPX_TEST_CLEAR_TERMINAL", value: "requested" }],
+      [{ name: "ACPX_TEST_INHERIT_HOST_TOKEN", value: "requested" }],
       process.platform,
-      ["ACPX_TEST_CLEAR_TERMINAL"],
+      { allow: [] },
     );
-    assert.equal(requested.env?.ACPX_TEST_CLEAR_TERMINAL, "requested");
-  } finally {
-    if (previous === undefined) {
-      delete process.env.ACPX_TEST_CLEAR_TERMINAL;
-    } else {
-      process.env.ACPX_TEST_CLEAR_TERMINAL = previous;
-    }
-  }
+    assert.equal(allowed.env?.ACPX_TEST_INHERIT_HOST_TOKEN, "requested");
+    assert.equal(Object.hasOwn(allowed.env ?? {}, "ACPX_TEST_INHERIT_ALLOWED"), false);
+    assert.equal(allowed.env?.PATH, process.env.PATH);
+  });
 });
 
-test("invalid agentProcessEnvClear names fail before spawning", () => {
+test("invalid agentProcessEnvAllow and agentProcessEnvBlock names fail before spawning", () => {
   for (const name of ["", "A=B", "A\u0000B"]) {
     assert.throws(
-      () => buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, [name]),
-      /Invalid agentProcessEnvClear/,
+      () => buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, { allow: [name] }),
+      /Invalid agentProcessEnvAllow/,
+    );
+    assert.throws(
+      () => buildAgentSpawnOptions(os.tmpdir(), undefined, undefined, undefined, { block: [name] }),
+      /Invalid agentProcessEnvBlock/,
     );
   }
 });

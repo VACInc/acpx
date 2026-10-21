@@ -861,7 +861,8 @@ test("createRuntimeStore is an alias for the file-backed session store", async (
 
 test("AcpxRuntime snapshots transient child environment for manager and probes", async () => {
   const agentProcessEnv = { ACPX_TEST_RUNTIME_OVERLAY: "construction-value" };
-  const agentProcessEnvClear = ["ACPX_TEST_HOST_TOKEN"];
+  const agentProcessEnvAllow = ["ACPX_TEST_ALLOWED"];
+  const agentProcessEnvBlock = ["ACPX_TEST_HOST_TOKEN"];
   const observed: unknown[] = [];
   const runtime = new AcpxRuntime(
     {
@@ -872,20 +873,27 @@ test("AcpxRuntime snapshots transient child environment for manager and probes",
       agentRegistry: createAgentRegistry(),
       permissionMode: "deny-all",
       agentProcessEnv,
-      agentProcessEnvClear,
+      agentProcessEnvAllow,
+      agentProcessEnvBlock,
     },
     {
       probeRunner: async (options) => {
-        observed.push(options.agentProcessEnv, options.agentProcessEnvClear);
+        observed.push(
+          options.agentProcessEnv,
+          options.agentProcessEnvAllow,
+          options.agentProcessEnvBlock,
+        );
         return { ok: true, message: "synthetic probe" };
       },
     },
   );
   agentProcessEnv.ACPX_TEST_RUNTIME_OVERLAY = "mutated-value";
-  agentProcessEnvClear.push("ACPX_TEST_ADDED_LATER");
+  agentProcessEnvAllow.push("ACPX_TEST_ADDED_LATER");
+  agentProcessEnvBlock.push("ACPX_TEST_ADDED_LATER");
   await runtime.doctor();
   assert.deepEqual(observed, [
     { ACPX_TEST_RUNTIME_OVERLAY: "construction-value" },
+    ["ACPX_TEST_ALLOWED"],
     ["ACPX_TEST_HOST_TOKEN"],
   ]);
   assert.equal(process.env.ACPX_TEST_RUNTIME_OVERLAY, undefined);

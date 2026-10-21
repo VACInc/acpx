@@ -1,4 +1,5 @@
 import type { AcpClientOptions } from "../types.js";
+import { inheritParentEnvironment, type InheritedEnvPolicy } from "./inherited-env.js";
 
 const AUTH_ENV_PREFIX = "ACPX_AUTH_";
 
@@ -27,12 +28,9 @@ function authEnvKey(methodId: string): string | undefined {
   return key;
 }
 
-export function readEnvCredential(
-  methodId: string,
-  agentProcessEnvClear?: readonly string[],
-): string | undefined {
+export function readEnvCredential(methodId: string): string | undefined {
   const key = authEnvKey(methodId);
-  if (!key || isClearedEnvName(agentProcessEnvClear, key)) {
+  if (!key) {
     return undefined;
   }
   const value = process.env[key];
@@ -44,12 +42,6 @@ export function readEnvCredential(
 
 function protectedEnvKey(key: string): string {
   return process.platform === "win32" ? key.toUpperCase() : key;
-}
-
-/** Whether the embedding host withholds this inherited name from agent children. */
-export function isClearedEnvName(clear: readonly string[] | undefined, key: string): boolean {
-  const normalizedKey = protectedEnvKey(key);
-  return clear?.some((name) => protectedEnvKey(name) === normalizedKey) ?? false;
 }
 
 function isAuthEnvKey(key: string): boolean {
@@ -101,54 +93,15 @@ function validateAgentProcessEnv(agentProcessEnv: Record<string, string> | undef
   }
 }
 
-function isEnvName(name: unknown): name is string {
-  return (
-    typeof name === "string" && name.length > 0 && !name.includes("=") && !name.includes("\u0000")
-  );
-}
-
-function validateAgentProcessEnvClear(names: readonly unknown[] | undefined): readonly string[] {
-  if (!names?.every(isEnvName)) {
-    throw new Error(
-      "Invalid agentProcessEnvClear: expected an array of non-empty names without NUL or '='",
-    );
-  }
-  return names.filter(isEnvName);
-}
-
-/** Validate and copy an embedder's clear list once, when a client or runtime is constructed. */
-export function snapshotAgentProcessEnvClear(clear: unknown): string[] | undefined {
-  if (clear === undefined) {
-    return undefined;
-  }
-  const names: readonly unknown[] | undefined = Array.isArray(clear) ? clear : undefined;
-  return [...validateAgentProcessEnvClear(names)];
-}
-
-/** Copy the parent environment without the names the embedding host withholds from children. */
-export function inheritParentEnvironment(clear: readonly string[] | undefined): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  if (!clear?.length) {
-    return env;
-  }
-  const cleared = new Set(validateAgentProcessEnvClear(clear).map(protectedEnvKey));
-  for (const key of Object.keys(env)) {
-    if (cleared.has(protectedEnvKey(key))) {
-      delete env[key];
-    }
-  }
-  return env;
-}
-
 function buildAgentEnvironment(
   authCredentials: Record<string, string> | undefined,
   sessionEnv: Record<string, string> | undefined,
   agentProcessEnv: Record<string, string> | undefined,
-  agentProcessEnvClear: readonly string[] | undefined,
+  inheritedEnv: InheritedEnvPolicy | undefined,
 ): NodeJS.ProcessEnv {
   validateAgentProcessEnv(agentProcessEnv);
-  // Clearing applies to inheritance only; explicit grants and overlays below still apply.
-  const env = inheritParentEnvironment(agentProcessEnvClear);
+  // Allow and block shape inheritance only; explicit grants and overlays below still apply.
+  const env = inheritParentEnvironment(inheritedEnv);
   const protectedAuthEnvKeys = promotePrefixedAuthEnvironment(env);
   if (authCredentials) {
     for (const [methodId, credential] of Object.entries(authCredentials)) {
@@ -255,7 +208,7 @@ export function buildAgentSpawnOptions(
   authCredentials: Record<string, string> | undefined,
   sessionEnv?: Record<string, string>,
   agentProcessEnv?: Record<string, string>,
-  agentProcessEnvClear?: readonly string[],
+  inheritedEnv?: InheritedEnvPolicy,
 ): {
   cwd: string;
   env: NodeJS.ProcessEnv;
@@ -264,7 +217,7 @@ export function buildAgentSpawnOptions(
 } {
   return {
     cwd,
-    env: buildAgentEnvironment(authCredentials, sessionEnv, agentProcessEnv, agentProcessEnvClear),
+    env: buildAgentEnvironment(authCredentials, sessionEnv, agentProcessEnv, inheritedEnv),
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   };
