@@ -399,7 +399,32 @@ Use `acpx config show` to inspect the resolved config and `acpx config init` to 
 For ACP `authenticate` handshakes, use either config `auth` entries or explicit
 `ACPX_AUTH_<METHOD_ID>` environment variables such as `ACPX_AUTH_OPENAI_API_KEY`.
 Ambient provider env vars such as `OPENAI_API_KEY` are still passed through to
-child agents, but they do not trigger ACP auth-method selection on their own.
+child agents by default, but they do not trigger ACP auth-method selection on
+their own.
+
+## Embedded environment inheritance
+
+Embedding hosts can set `agentProcessEnvAllow` or `agentProcessEnvBlock` on
+`createAcpRuntime()` to keep parent variables, such as the host's own service
+credentials, out of agents, command probes, and ACP terminals. Both are off by
+default and the CLI does not set them, so without them children inherit the
+whole environment as before.
+
+- `agentProcessEnvAllow` keeps only process essentials (`PATH`, `HOME`, locale,
+  temp and similar names) plus the listed names. An empty list keeps only the
+  essentials and explicit grants.
+- `agentProcessEnvBlock` removes the listed names, applied after the allowlist.
+- Explicit grants still apply: `ACPX_AUTH_<METHOD_ID>` variables pass through
+  both lists, and `agentProcessEnv`, saved session `env`, and a terminal
+  request's own `env` are layered on top.
+
+A filtered provider key does not reach the agent. Agent-specific environment
+authentication that ACPX selects itself, such as Grok Build's `XAI_API_KEY` for
+`xai.api_key`, is skipped as well when the key is filtered. Keep such a key by
+listing it in the allowlist and leaving it off the blocklist, or pass it as an
+`ACPX_AUTH_*` grant (for Grok Build, `ACPX_AUTH_XAI_API_KEY`). See
+[`docs/runtime-environment.md`](https://github.com/openclaw/acpx/blob/main/docs/runtime-environment.md)
+and [`agents/GrokBuild.md`](https://github.com/openclaw/acpx/blob/main/agents/GrokBuild.md).
 
 ## Devin ACP compatibility
 

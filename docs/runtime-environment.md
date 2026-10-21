@@ -46,7 +46,12 @@ win: `ACPX_AUTH_<NAME>` variables pass through both lists, and protected
 authentication values, `agentProcessEnv`, persisted `sessionOptions.env` and a
 terminal request's own `env` still apply. When ACPX picks an environment
 credential for ACP authentication, it skips agent-specific variables such as
-`XAI_API_KEY` that children would not inherit.
+Grok Build's `XAI_API_KEY` that children would not inherit, even when the host
+environment has them. To keep such a credential, list it in the allowlist and
+leave it off the blocklist, or pass it as an `ACPX_AUTH_<METHOD_ID>` grant such
+as `ACPX_AUTH_XAI_API_KEY`. Provider keys that an agent reads from its own
+environment follow the same lists: allow them by name or supply them through
+`agentProcessEnv`.
 
 ACPX snapshots both lists at construction and rejects a list that is not an
 array of non-empty names without `=` or NUL. Windows matches names
